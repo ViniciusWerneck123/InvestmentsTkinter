@@ -1,4 +1,6 @@
-from tkinter import Frame, Label, Button, Scrollbar, Listbox, Tk, ttk, LabelFrame
+from multiprocessing.connection import wait
+from time import time
+from tkinter import Frame, Label, Button, Scrollbar, Tk, ttk, LabelFrame, messagebox
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -34,7 +36,7 @@ class App:
 
         # Third layer
         self.root11 = Frame(self.root1, height=self.height / 15, width=2 * self.width / 3, borderwidth=2)
-        self.root12 = Frame(self.root1, height=2*self.height / 15, width=2 * self.width / 3, borderwidth=2)
+        self.root12 = Frame(self.root1, height=18*self.height / 150, width=2 * self.width / 3, borderwidth=2, highlightbackground="blue", highlightthickness=2)
         self.root13 = Frame(self.root1, height=12 * self.height / 15, width=2 * self.width / 3, borderwidth=2)
         self.root21 = Frame(self.root2, height=self.height / 3, width=self.width / 3, borderwidth=2, relief='groove')
         self.root22 = Frame(self.root2, height=2 * self.height / 3, width=self.width / 3, borderwidth=2, relief='groove')
@@ -45,8 +47,8 @@ class App:
         self.root22.grid_propagate(0)
 
         # Fourth layer of third frame of third layer
-        self.root131 = Frame(self.root13, height=2 * self.height / 15, width=2 * self.width / 3)
-        self.root132 = Frame(self.root13, height=13 * self.height / 15, width=2 * self.width / 3)
+        self.root131 = Frame(self.root13, height=2*self.height / 45, width=2 * self.width / 3, highlightbackground="blue", highlightthickness=2)
+        self.root132 = Frame(self.root13, height=14 * self.height / 15, width=2 * self.width / 3, highlightbackground="red", highlightthickness=2)
         self.root131.grid_propagate(0)
         self.root132.pack_propagate(0)
 
@@ -74,10 +76,10 @@ class App:
         self.acoes_button.grid_propagate(0)
         self.criptos_button.grid_propagate(0)
 
-        self.graph_buttons = [Button(self.root131, text=f'{col}', font=10, relief='raised', command=lambda i=i:self.change_plot(int(i)))
-                              for i, col in enumerate(self.current_sheet['Quantidade'].columns)]
-        self.graph_buttons[0].config(relief='sunken')
-        [obj.pack_propagate(0) for obj in self.graph_buttons]
+        self.listbutton = ttk.Combobox(self.root131, values=[col for col in self.acoes['Quantidade'].columns])
+        self.listbutton.set(self.listbutton['values'][0])
+        self.listbutton['state'] = 'readonly'
+        self.listbutton.bind('<<ComboboxSelected>>', self.change_plot)
 
         self.total_invested_label = LabelFrame(self.root12, text='Total Investido', font=('bolder', 10), width=150,
                                                height=2*self.height / 15 - 25)
@@ -111,6 +113,8 @@ class App:
         for item in self.invest_info.get_children():
             self.invest_info.delete(item)
         for col, series in self.current_sheet['Quantidade'].iteritems():
+            if series.dropna()[-1] == 0:
+                continue
             if self.acoes_pressed:
                 self.invest_info.heading('name', text='Ações')
                 self.invest_info.insert('', 'end', values=(str(col), str(series.dropna()[-1])))
@@ -134,7 +138,7 @@ class App:
 
         self.acoes_button.grid(column=0, row=0, padx=10, pady=5)
         self.criptos_button.grid(column=1, row=0, padx=10, pady=5)
-        [obj.pack(side='left', pady=2, padx=1, fill='both') for obj in self.graph_buttons]
+        self.listbutton.grid(column=0, row=0)
 
         self.total_invested_label.grid(column=0, row=0, padx=10, pady=5)
         self.total_invest.pack(side='top')
@@ -176,38 +180,16 @@ class App:
         self.update_window()
 
     def update_graph_buttons(self):
-        for i, obj in enumerate(self.graph_buttons):
-            try:
-                if self.acoes_pressed:
-                    obj.config(text=f'{self.current_sheet["Quantidade"].columns[i]}')
-                elif self.criptos_pressed:
-                    obj.config(text=f'{self.current_sheet["Quantidade"].columns[i][:3]}')
-            except IndexError:
-                for item in self.graph_buttons[i:]:
-                    item.destroy()
-                    self.graph_buttons.remove(item)
-
-        if i != len(self.current_sheet["Quantidade"].columns):
-            for n in range(len(self.current_sheet["Quantidade"].columns)-i-1):
-                i = i + 1
-                if self.acoes_pressed:
-                    self.graph_buttons.append(Button(self.root131, text=f'{self.current_sheet["Quantidade"].columns[i]}',
-                                                     font=10, relief='raised', command=lambda i=i:self.change_plot(int(i))))
-                    self.graph_buttons[i].pack(side='left', pady=2, padx=1, fill='both')
-                elif self.criptos_pressed:
-                    self.graph_buttons.append(
-                        Button(self.root131, text=f'{self.current_sheet["Quantidade"].columns[i][:3]}',
-                               font=10, relief='raised', command=lambda i=i: self.change_plot(int(i))))
-                    self.graph_buttons[i].pack(side='left', pady=2, padx=1, fill='both')
+        if self.acoes_pressed:
+            self.listbutton['values'] = [col for col in self.acoes['Quantidade'].columns if self.acoes['Quantidade'][col].iloc[-1] != 0]
+            self.listbutton.set(self.listbutton['values'][0])
+        if self.criptos_pressed:
+            self.listbutton['values'] = [col for col in self.criptos['Quantidade'].columns if self.criptos['Quantidade'][col].iloc[-1] != 0]
+            self.listbutton.set(self.listbutton['values'][0])
         self.change_plot(0)
 
-    def change_plot(self, i):
-        self.current_ticker = self.current_sheet['Quantidade'].columns[i]
-        for idx, obj in enumerate(self.graph_buttons):
-            if idx is i:
-                obj.config(relief='sunken')
-            else:
-                obj.config(relief='raised')
+    def change_plot(self, event):
+        self.current_ticker = self.listbutton.get()
         self.ax.clear()
         self.line = self.plot_graph()
         self.canvas.draw()
@@ -237,4 +219,6 @@ class App:
         self.update_labels()
         self.update_graph_buttons()
 
-
+    def on_closing(self):
+        if messagebox.askokcancel("Quit", "Do you want to quit?"):
+            self.root.quit()
