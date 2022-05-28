@@ -94,6 +94,13 @@ class App:
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.root132)
 
+        self.fig2 = plt.figure(figsize=(4, 4), facecolor='lightgrey')
+        self.ax2 = self.fig2.gca()
+        values = self.pie_plot()
+        self.ax2.pie(x=list(values.values()), labels=list(values.keys()))
+
+        self.canvas2 = FigureCanvasTkAgg(self.fig2, master=self.root22)
+
         self.put_widgets()
 
     def plot_graph(self):
@@ -104,6 +111,18 @@ class App:
         self.ax.set_xlabel('')
         self.fig.tight_layout()
         return line
+
+    def pie_plot(self) -> dict:
+        values = dict()
+        if self.acoes_pressed:
+            data = self.stock_data
+        elif self.criptos_pressed:
+            data = self.cripto_data
+        for col in self.current_sheet['Quantidade'].columns:
+            if self.current_sheet['Quantidade'][col].dropna()[-1] == 0:
+                pass
+            values[col] = self.current_sheet['Quantidade'][col].dropna()[-1]*data[col]['Adj Close'].dropna()[-1]
+        return values
 
     def update_labels(self):
         self.total_invest.config(text=self.total_invested())
@@ -147,6 +166,8 @@ class App:
 
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(side='top', fill='both')
+        self.canvas2.draw()
+        self.canvas2.get_tk_widget().pack(side='top', fill='both')
 
     def load_database(self) -> pd.DataFrame:
         '''Loads data from the sheet that has date and number of stock and cripto transactions.'''
@@ -215,6 +236,11 @@ class App:
         elif self.criptos_pressed:
             self.criptos_button.config(relief='sunken')
             self.acoes_button.config(relief='raised')
+        values = self.pie_plot()
+        self.ax2.clear()
+        self.ax2.pie(x=list(values.values()), labels=list(values.keys()))
+        self.canvas2.draw()
+        self.canvas2.get_tk_widget().pack(side='top', fill='both')
         self.update_listbox()
         self.update_labels()
         self.update_graph_buttons()
